@@ -84,9 +84,25 @@ def getNeighbours(tag):
     if tag.type in headings:
       right = Tag.get(Tag.ref == right, Tag.type == tag.type) # to deal with parts appropriately we select for part / chapter with the appropriate number
     else:
-      right = Tag.get(Tag.ref == right, Tag.type != "item")
+      right = Tag.get(Tag.ref == right, Tag.type != "item") # warning: this can lead to one-way links, e.g. definition to subsection
   except Tag.DoesNotExist:
-    right = None
+    if tag.type in headings: # assume that this fails because this tag is the last tag at this depth
+      temppieces = pieces[:]
+      temppieces[-1] = 1 # try to go to the first tag in the next higher section
+      maxdepth = len(temppieces)
+      for currdepth in range(maxdepth - 2, 0, -1): # try increasing the depth; maybe limit to gerby.configuration.UNIT and above
+        temppieces[currdepth] += 1 # warning: the increment might be greater than 1 e.g. when there are definitions between subsections
+        right = ".".join(map(str, temppieces)) # should the depth be allowed to change? e.g. W.X.Y.Z to W.X+1.1. Probably not!
+        try:
+          right = Tag.get(Tag.ref == right, Tag.type == tag.type)
+          break
+        except Tag.DoesNotExist:
+          if currdepth == 0:
+            right = None
+          else:
+            temppieces[currdepth] = 1 # the label at this depth goes back to 1
+    else: # will need different logic for definitions, theorems, lemmas, etc.
+      right = None
 
   # up
   up = ".".join(map(str, pieces[:-1]))
